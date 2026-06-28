@@ -49,7 +49,7 @@ RUN mkdir -p /app/config /app/evaluation /app/feedbacks
 
 RUN mkdir -p /app/models/huggingface /app/models/sentence_transformers /app/models/easyocr
 
-COPY easyocr_models/ /app/models/easyocr/
+# easyocr_models/ non inclus dans le dépôt — dossier déjà créé ci-dessus, les modèles se téléchargent à la première utilisation
 
 RUN mkdir -p /app/src/api/static
 COPY pics/luciole.png /app/src/api/static/logo.png
