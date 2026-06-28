@@ -1,0 +1,27 @@
+{
+    "version":  "4.0",
+    "docker_images":  [
+                          {
+                              "size_mb":  4684.2,
+                              "name":  "luciole-gpu.tar"
+                          },
+                          {
+                              "size_mb":  3478.7,
+                              "name":  "ollama.tar"
+                          },
+                          {
+                              "size_mb":  842,
+                              "name":  "opensearch.tar"
+                          },
+                          {
+                              "size_mb":  56.1,
+                              "name":  "qdrant.tar"
+                          }
+                      ],
+    "profile":  "gpu",
+    "llm_model":  "qwen2.5:7b",
+    "pip_wheels":  0,
+    "embedding_model":  "BAAI/bge-m3",
+    "reranker_model":  "BAAI/bge-reranker-v2-m3",
+    "created":  "2026-05-02 14:55:00"
+}

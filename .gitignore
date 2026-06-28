@@ -1,0 +1,108 @@
+# ============================================================
+# Luciole — .gitignore
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Environnements virtuels ---
+.env
+.env.local
+.env.*.local
+venv/
+env/
+ENV/
+.venv/
+
+# --- IDE & éditeurs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Tests & couverture ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# --- Logs ---
+*.log
+logs/
+*.log.*
+
+# --- Données utilisateur (NE JAMAIS COMMIT) ---
+data/inbox/*
+!data/inbox/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/uploads/*
+!data/uploads/.gitkeep
+
+# --- Index OpenSearch & embeddings ---
+opensearch_data/
+embeddings_cache/
+*.index
+*.faiss
+
+# --- Modèles téléchargés ---
+models/*
+!models/.gitkeep
+*.gguf
+*.safetensors
+*.bin
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Secrets & clés ---
+*.pem
+*.key
+*.crt
+secrets/
+credentials.json
+
+# --- Notebooks Jupyter ---
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# --- Fichiers temporaires ---
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Runtime data � ne pas versionner
+feedbacks/
+data/mail/
+*.mail_key
+
+# Donn�es runtime Stalwart Mail (bo�tes, SQLite)
+mail-server/data/

@@ -1,0 +1,61 @@
+# Dockerfile pour Luciole RAG avec support GPU NVIDIA CUDA
+# Base: nvidia/cuda pour PyTorch avec CUDA
+
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+LABEL maintainer="Luciole RAG Team"
+LABEL description="API RAG avec support GPU CUDA pour embeddings et reranking"
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV HF_HOME=/app/models/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/models/sentence_transformers
+ENV EASYOCR_MODULE_PATH=/app/models/easyocr
+ENV PIP_TRUSTED_HOST="pypi.org pypi.python.org files.pythonhosted.org download.pytorch.org"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && update-ca-certificates
+
+WORKDIR /app
+
+COPY setup/requirements-linux-gpu.txt ./requirements.txt
+
+RUN pip install --no-cache-dir --trusted-host download.pytorch.org --trusted-host pypi.org --trusted-host files.pythonhosted.org \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org \
+    -r requirements.txt
+
+COPY src/ ./src/
+COPY pics/ ./pics/
+
+RUN mkdir -p /app/config /app/evaluation /app/feedbacks
+
+RUN mkdir -p /app/models/huggingface /app/models/sentence_transformers /app/models/easyocr
+
+COPY easyocr_models/ /app/models/easyocr/
+
+RUN mkdir -p /app/src/api/static
+COPY pics/luciole.png /app/src/api/static/logo.png
+COPY pics/luciole.png /app/src/api/static/favicon.png
+
+# Chaque container n'expose qu'un seul port (défini par la commande du service)
+# EXPOSE est indicatif — le port réel est fixé dans docker-compose.yml
+
+CMD ["python", "-m", "uvicorn", "src.agent.api:app", "--host", "0.0.0.0", "--port", "8000"]

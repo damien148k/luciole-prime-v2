@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stalwart Mail — Configuration V1 Luciole Prime
+#
+# Serveur mail local de test — LAN fermé, sans TLS, sans Internet.
+# NE PAS utiliser en production Internet.
+#
+# Documentation : https://stalw.art/docs
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Identité du serveur ──────────────────────────────────────────────────────
+
+[server]
+hostname = "mail.local.lan"
+
+# ── Listeners réseau ─────────────────────────────────────────────────────────
+
+# SMTP entrant — port 25 sans TLS
+# Reçoit les emails des clients LAN (Thunderbird, etc.) ET des containers Docker
+[server.listener."smtp"]
+bind = ["0.0.0.0:25"]
+protocol = "smtp"
+tls.implicit = false
+
+# IMAP — port 143 sans TLS
+# Utilisé par le module mail Luciole (imaplib) ET les clients de test
+[server.listener."imap"]
+bind = ["0.0.0.0:143"]
+protocol = "imap"
+tls.implicit = false
+
+# Interface d'administration web — port 8080
+# Exposé uniquement en localhost (127.0.0.1:8025 dans docker-compose)
+[server.listener."management"]
+bind = ["0.0.0.0:8080"]
+protocol = "http"
+
+# ── Stockage SQLite local ────────────────────────────────────────────────────
+
+[store."data"]
+type = "sqlite"
+path = "/opt/stalwart-mail/data/data.db"
+
+[store."fts"]
+type = "sqlite"
+path = "/opt/stalwart-mail/data/fts.db"
+
+[store."blobs"]
+type = "sqlite"
+path = "/opt/stalwart-mail/data/blobs.db"
+
+[store."lookup"]
+type = "sqlite"
+path = "/opt/stalwart-mail/data/lookup.db"
+
+[storage]
+data  = "data"
+fts   = "fts"
+blob  = "blobs"
+lookup = "lookup"
+directory = "internal"
+
+# ── Répertoire des comptes (interne SQLite) ───────────────────────────────────
+
+[directory."internal"]
+type  = "internal"
+store = "data"
+
+# Activer l'authentification SMTP sans TLS (PLAIN autorisé en LAN fermé)
+[auth.mechanism.login]
+enable = true
+
+[auth.mechanism.plain]
+enable = true
+
+# ── Compte administrateur de secours ─────────────────────────────────────────
+# Utilisé pour accéder à l'admin web si aucun compte admin n'existe encore.
+# À changer après la création du compte admin permanent.
+
+[authentication.fallback-admin]
+user   = "admin"
+secret = "admin_luciole_2024"
+
+# ── Domaine local ─────────────────────────────────────────────────────────────
+
+[[domain]]
+name = "local.lan"
+
+# ── Politique SMTP ────────────────────────────────────────────────────────────
+
+# Accepter les emails pour local.lan sans authentification (relay interne)
+[smtp.session.auth]
+require = false
+allow-plain-text = true
+
+# Taille max des messages : 50 Mo
+[smtp.message-limits]
+size = 52428800
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+
+[tracer."stdout"]
+type   = "stdout"
+level  = "info"
+enable = true

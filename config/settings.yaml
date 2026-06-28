@@ -1,0 +1,159 @@
+embedding:
+  model: BAAI/bge-m3
+  device: auto
+  batch_size: 32
+retrieval:
+  bm25_top_k: 40
+  dense_top_k: 40
+  fusion_top_k: 30
+  bm25_weight: 0.45
+  dense_weight: 0.55
+  rerank_top_n: 15
+reranker:
+  model: BAAI/bge-reranker-v2-m3
+  device: cpu
+  batch_size: 8
+llm:
+  provider: ollama
+  model: qwen2.5:7b
+  base_url: http://ollama:11434
+  api_format: openai
+  temperature: 0.1
+  max_tokens: 4096
+  num_ctx: 32768
+  timeout: 1800
+agent:
+  port: 8500
+  cache_ttl: 0
+  default_detail_level: standard
+chunking:
+  chunk_size: 800
+  chunk_overlap: 100
+  strategy: sentence
+  include_file_context: true
+  adaptive: true
+chunking_strategies:
+  pdf:
+    strategy: sentence
+    chunk_size: 512
+    chunk_overlap: 50
+  docx:
+    strategy: paragraph
+    chunk_size: 600
+    chunk_overlap: 80
+  xlsx:
+    strategy: row_group
+    rows_per_chunk: 20
+    include_header: true
+  pptx:
+    strategy: slide
+    chunk_size: 800
+    chunk_overlap: 0
+  msg:
+    strategy: email
+    chunk_size: 800
+    chunk_overlap: 0
+  txt:
+    strategy: sentence
+    chunk_size: 400
+    chunk_overlap: 50
+excel:
+  max_rows_per_chunk: 50
+  overlap_rows: 5
+  enable_sql_storage: true
+  sqlite_path: /app/data/excel_data.db
+  include_stats: true
+  detect_key_columns: true
+pdf:
+  enable_ocr: false
+  markdown_timeout: 0
+  markdown_timeout_per_page: 2.0
+  ocr_dpi: 300
+  max_drawings_per_page: 500
+opensearch:
+  host: localhost
+  port: 9200
+  index_name: documents
+qdrant:
+  host: localhost
+  port: 6333
+  collection_name: documents
+  distance: cosine
+api:
+  host: 0.0.0.0
+  port: 8000
+  reload: false
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: data/logs/rag_system.log
+feedback:
+  enabled: true
+  key_users:
+  - damien
+ragas:
+  enabled: true
+  use_local_llm: true
+  eval_model: qwen2.5-14b-ragas
+  embed_model: nomic-embed-text
+  metrics:
+  - faithfulness
+  - answer_relevancy
+  - context_recall
+  thresholds:
+    faithfulness: 0.8
+    answer_relevancy: 0.75
+    context_recall: 0.7
+  dataset_path: evaluation/datasets/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Watcher — Surveillance automatique de fichiers et réindexation RAG
+# ─────────────────────────────────────────────────────────────────────────────
+watcher:
+  enabled: true
+
+  # Chemins surveillés
+  # Chaque entrée peut être une chaîne simple ou un objet avec options
+  watched_paths:
+    - path: /app/data
+      recursive: true
+      index_name: documents    # Utilise la collection Qdrant / index OpenSearch
+
+  # Observation filesystem
+  polling_interval: 5.0        # Intervalle watchdog PollingObserver (secondes)
+  debounce_seconds: 3.0        # Délai avant enqueue après dernier événement
+  stability_checks: 3          # Nb de vérifications de stabilité fichier
+  stability_interval: 2.0      # Délai entre vérifications de stabilité (s)
+
+  # Worker
+  max_worker_threads: 1        # 1 seul worker en V1 (embedding = goulot)
+  worker_poll_interval: 1.0    # Fréquence de poll de la queue (s)
+
+  # Réconciliation périodique
+  reconcile_interval: 300      # Scan toutes les 5 minutes
+  reconcile_on_startup: true   # Scan immédiat au démarrage
+
+  # Filtres (laisser vide = utilise les extensions par défaut du watcher)
+  allowed_extensions: []
+  excluded_dirs:
+    - .git
+    - __pycache__
+    - .venv
+    - node_modules
+  excluded_extensions:
+    - .tmp
+    - .temp
+
+  # Limites
+  max_file_size_mb: 500        # Fichiers > 500 Mo ignorés
+
+  # Retry et backoff
+  retry_max_attempts: 3        # Tentatives avant dead-letter
+  retry_backoff_base: 60.0     # Délai initial entre tentatives (s)
+
+  # Base de données watcher (volume Docker persistant)
+  db_path: /app/backups/watcher/watcher.db
+
+  # API d'administration watcher
+  api_port: 8090
+  default_index_name: documents

@@ -1,0 +1,343 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: luciole-ollama-${INSTANCE_NAME}
+    ports:
+    - 127.0.0.1:${OLLAMA_PORT:-11434}:11434
+    volumes:
+    - ./models/ollama:/root/.ollama
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - NVIDIA_VISIBLE_DEVICES=all
+    - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    - OLLAMA_NUM_PARALLEL=1
+    - OLLAMA_MAX_LOADED_MODELS=1
+    - OLLAMA_KEEP_ALIVE=60m
+    profiles:
+    - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities:
+            - gpu
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD
+      - ollama
+      - list
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: luciole-qdrant-${INSTANCE_NAME}
+    ports:
+    - 127.0.0.1:${QDRANT_PORT:-6333}:6333
+    volumes:
+    - qdrant_storage:/qdrant/storage
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: luciole-opensearch-${INSTANCE_NAME}
+    ports:
+    - 127.0.0.1:${OPENSEARCH_PORT:-9200}:9200
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - discovery.type=single-node
+    - DISABLE_SECURITY_PLUGIN=true
+    - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx1g
+    volumes:
+    - opensearch_data:/usr/share/opensearch/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+  agent:
+    image: luciole-gpu:latest
+    container_name: luciole-agent-${INSTANCE_NAME}
+    profiles:
+    - gpu
+    depends_on:
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      opensearch:
+        condition: service_started
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - INSTANCE_NAME=${INSTANCE_NAME}
+    - LLM_URL=http://ollama:11434
+    - QDRANT_URL=http://qdrant:6333
+    - OPENSEARCH_URL=http://opensearch:9200
+    - HF_HUB_OFFLINE=1
+    - TRANSFORMERS_OFFLINE=1
+    - HF_HOME=/app/models/huggingface
+    - SENTENCE_TRANSFORMERS_HOME=/app/models/huggingface
+    - CUDA_VISIBLE_DEVICES=0
+    volumes:
+    - ./config:/app/config
+    - ./data:/app/data
+    - ./feedbacks:/app/feedbacks
+    - ./evaluation:/app/evaluation
+    - ./models/huggingface:/app/models/huggingface
+    - ./config/query_rewriter.py:/app/src/retrieval/query_rewriter.py
+    - ./backups:/app/backups
+    ports:
+    - ${API_PORT:-8000}:8000
+    command:
+    - python
+    - -m
+    - uvicorn
+    - src.agent.api:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8000'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities:
+            - gpu
+  admin-ui:
+    image: luciole-gpu:latest
+    container_name: luciole-admin-${INSTANCE_NAME}
+    profiles:
+    - gpu
+    depends_on:
+      qdrant:
+        condition: service_started
+      opensearch:
+        condition: service_started
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - INSTANCE_NAME=${INSTANCE_NAME}
+    - LLM_URL=http://ollama:11434
+    - QDRANT_URL=http://qdrant:6333
+    - OPENSEARCH_URL=http://opensearch:9200
+    - AGENT_URL=http://agent:8000
+    - HF_HUB_OFFLINE=1
+    - TRANSFORMERS_OFFLINE=1
+    - HF_HOME=/app/models/huggingface
+    - SENTENCE_TRANSFORMERS_HOME=/app/models/huggingface
+    - CUDA_VISIBLE_DEVICES=0
+    volumes:
+    - ./config:/app/config
+    - ./data:/app/data
+    - ./feedbacks:/app/feedbacks
+    - ./evaluation:/app/evaluation
+    - ./models/huggingface:/app/models/huggingface
+    - ./backups:/app/backups
+    ports:
+    - ${ADMIN_PORT:-8080}:8080
+    command:
+    - python
+    - -m
+    - uvicorn
+    - src.api.admin_ui:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8080'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities:
+            - gpu
+  chat:
+    image: luciole-gpu:latest
+    container_name: luciole-chat-${INSTANCE_NAME}
+    profiles:
+    - gpu
+    depends_on:
+    - agent
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - INSTANCE_NAME=${INSTANCE_NAME}
+    - AGENT_URL=http://agent:8000
+    - HF_HUB_OFFLINE=1
+    - TRANSFORMERS_OFFLINE=1
+    volumes:
+    - ./config:/app/config:ro
+    ports:
+    - ${CHAT_PORT:-8501}:8501
+    command:
+    - python
+    - -m
+    - uvicorn
+    - src.api.chat_ui:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8501'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+  feedback:
+    image: luciole-gpu:latest
+    container_name: luciole-feedback-${INSTANCE_NAME}
+    profiles:
+    - gpu
+    depends_on:
+    - agent
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - INSTANCE_NAME=${INSTANCE_NAME}
+    - AGENT_URL=http://agent:8000
+    - LLM_URL=http://ollama:11434
+    - FEEDBACK_DB_PATH=/app/feedbacks/feedbacks.db
+    - MAIL_DB_PATH=/app/feedbacks/mail.db
+    - MAIL_ATTACHMENTS_PATH=/app/feedbacks/mail_attachments
+    - MAIL_ENCRYPTION_KEY=${MAIL_ENCRYPTION_KEY:-}
+    - HF_HUB_OFFLINE=1
+    - TRANSFORMERS_OFFLINE=1
+    volumes:
+    - ./config:/app/config
+    - ./feedbacks:/app/feedbacks
+    - ./config/query_rewriter.py:/app/src/retrieval/query_rewriter.py
+    ports:
+    - ${FEEDBACK_PORT:-8503}:8503
+    command:
+    - python
+    - -m
+    - uvicorn
+    - src.api.feedback_ui:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8503'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+  watcher:
+    image: luciole-gpu:latest
+    container_name: luciole-watcher-${INSTANCE_NAME}
+    profiles:
+    - gpu
+    depends_on:
+      qdrant:
+        condition: service_started
+      opensearch:
+        condition: service_started
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - INSTANCE_NAME=${INSTANCE_NAME}
+    - QDRANT_URL=http://qdrant:6333
+    - OPENSEARCH_URL=http://opensearch:9200
+    - HF_HUB_OFFLINE=1
+    - TRANSFORMERS_OFFLINE=1
+    - HF_HOME=/app/models/huggingface
+    - SENTENCE_TRANSFORMERS_HOME=/app/models/huggingface
+    - CUDA_VISIBLE_DEVICES=
+    - WATCHER_ENABLED=${WATCHER_ENABLED:-true}
+    - WATCHER_INDEX_NAME=${INSTANCE_NAME}
+    - WATCHER_DB_PATH=${WATCHER_DB_PATH:-/app/backups/watcher/watcher.db}
+    - WATCHER_POLLING_INTERVAL=${WATCHER_POLLING_INTERVAL:-5}
+    - WATCHER_DEBOUNCE_SECONDS=${WATCHER_DEBOUNCE_SECONDS:-3}
+    - WATCHER_MAX_FILE_SIZE_MB=${WATCHER_MAX_FILE_SIZE_MB:-500}
+    - WATCHER_RECONCILE_INTERVAL=${WATCHER_RECONCILE_INTERVAL:-300}
+    - WATCHER_RETRY_MAX_ATTEMPTS=${WATCHER_RETRY_MAX_ATTEMPTS:-3}
+    - WATCHER_WORKER_THREADS=${WATCHER_WORKER_THREADS:-1}
+    - WATCHER_PORT=${WATCHER_PORT:-8090}
+    volumes:
+    - ./config:/app/config:ro
+    - ./data:/app/data:ro
+    - ./backups:/app/backups
+    - ./models/huggingface:/app/models/huggingface
+    ports:
+    - 127.0.0.1:${WATCHER_PORT:-8090}:8090
+    command:
+    - python
+    - -m
+    - uvicorn
+    - src.watcher.main:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8090'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities:
+            - gpu
+  luciole-mail:
+    image: greenmail/standalone:latest
+    container_name: luciole-mail-${INSTANCE_NAME}
+    profiles:
+    - gpu
+    - cpu
+    environment:
+    - TZ=${TZ:-Europe/Paris}
+    - GREENMAIL_OPTS=-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled=true
+      -Dgreenmail.verbose=false
+    - JAVA_OPTS=-Xms64m -Xmx256m
+    ports:
+    - 0.0.0.0:${MAIL_SMTP_PORT:-25}:3025
+    - 0.0.0.0:${MAIL_IMAP_PORT:-143}:3143
+    - 127.0.0.1:${MAIL_ADMIN_PORT:-8025}:8080
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - nc -z localhost 3025 && nc -z localhost 3143 || exit 1
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+volumes:
+  qdrant_storage: null
+  opensearch_data: null

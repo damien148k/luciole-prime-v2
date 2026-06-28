@@ -1,0 +1,54 @@
+# Dockerfile Luciole RAG sans GPU (PyTorch CPU uniquement)
+
+FROM python:3.11-slim
+
+LABEL maintainer="Luciole RAG Team"
+LABEL description="API RAG CPU pour embeddings et reranking"
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV HF_HOME=/app/models/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/models/sentence_transformers
+ENV EASYOCR_MODULE_PATH=/app/models/easyocr
+ENV PIP_TRUSTED_HOST="pypi.org pypi.python.org files.pythonhosted.org download.pytorch.org"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+WORKDIR /app
+
+COPY setup/requirements-linux-cpu.txt ./requirements.txt
+
+RUN pip install --no-cache-dir --trusted-host download.pytorch.org --trusted-host pypi.org --trusted-host files.pythonhosted.org \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org \
+    -r requirements.txt
+
+COPY src/ ./src/
+COPY pics/ ./pics/
+
+RUN mkdir -p /app/config /app/evaluation /app/feedbacks
+
+RUN mkdir -p /app/models/huggingface /app/models/sentence_transformers /app/models/easyocr
+
+COPY easyocr_models/ /app/models/easyocr/
+
+RUN mkdir -p /app/src/api/static
+COPY pics/luciole.png /app/src/api/static/logo.png
+COPY pics/luciole.png /app/src/api/static/favicon.png
+
+EXPOSE 8000 8080 8501 8503
+
+CMD ["python", "-m", "uvicorn", "src.agent.api:app", "--host", "0.0.0.0", "--port", "8000"]

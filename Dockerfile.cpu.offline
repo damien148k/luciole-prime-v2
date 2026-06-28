@@ -1,0 +1,55 @@
+# Dockerfile Luciole RAG sans GPU (PyTorch CPU uniquement)
+# VERSION OFFLINE — utilise les wheels pre-telecharges dans pip_packages/
+# Usage: docker build -f Dockerfile.cpu.offline -t luciole-cpu:latest .
+
+FROM python:3.11-slim
+
+LABEL maintainer="Luciole RAG Team"
+LABEL description="API RAG CPU — build offline depuis pip_packages/"
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV HF_HOME=/app/models/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/models/sentence_transformers
+ENV EASYOCR_MODULE_PATH=/app/models/easyocr
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+WORKDIR /app
+
+COPY pip_packages/ /tmp/pip_packages/
+
+RUN pip install --no-cache-dir --no-index --find-links=/tmp/pip_packages/ \
+    torch torchvision torchaudio \
+    && pip install --no-cache-dir --no-index --find-links=/tmp/pip_packages/ \
+    -r /tmp/pip_packages/requirements-linux-cpu.txt \
+    && rm -rf /tmp/pip_packages/
+
+COPY rag-system/src/ ./src/
+COPY rag-system/pics/ ./pics/
+
+RUN mkdir -p /app/config /app/evaluation /app/feedbacks
+
+RUN mkdir -p /app/models/huggingface /app/models/sentence_transformers /app/models/easyocr
+
+COPY rag-system/easyocr_models/ /app/models/easyocr/
+
+RUN mkdir -p /app/src/api/static
+COPY rag-system/pics/luciole.png /app/src/api/static/logo.png
+COPY rag-system/pics/luciole.png /app/src/api/static/favicon.png
+
+EXPOSE 8000 8080 8501 8503
+
+CMD ["python", "-m", "uvicorn", "src.agent.api:app", "--host", "0.0.0.0", "--port", "8000"]

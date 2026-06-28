@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG System - Recherche Documentaire</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <style>
+        :root {
+            --bg-primary: #0f0f14;
+            --bg-secondary: #1a1a24;
+            --bg-tertiary: #242432;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo img {
+            width: 48px;
+            height: 48px;
+        }
+        
+        .logo h1 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 2rem;
+            font-size: 0.875rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        main {
+            padding: 2rem;
+        }
+        
+        .search-section {
+            margin-bottom: 2rem;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 1rem;
+            background: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+        }
+        
+        .search-box input {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .search-box input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        .search-box button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .search-box button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        
+        .search-box button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .upload-section {
+            margin-bottom: 2rem;
+        }
+        
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 1rem;
+            padding: 3rem;
+            text-align: center;
+            background: var(--bg-secondary);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        .upload-zone h3 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .upload-zone p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        .upload-zone input {
+            display: none;
+        }
+        
+        .results-section {
+            margin-top: 2rem;
+        }
+        
+        .response-card {
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 2rem;
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+        
+        .response-card h3 {
+            color: var(--accent);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .response-text {
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            line-height: 1.8;
+        }
+        
+        .confidence-bar {
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .confidence-bar span {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .confidence-track {
+            flex: 1;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .sources-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .sources-section h4 {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        
+        .source-item {
+            background: var(--bg-tertiary);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .source-item .file-name {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .source-item .excerpt {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+        
+        .documents-section {
+            margin-top: 3rem;
+        }
+        
+        .documents-section h2 {
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .refresh-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .documents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        
+        .document-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+        
+        .document-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        
+        .document-card .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .document-card .name {
+            color: var(--text-primary);
+            font-weight: 500;
+            word-break: break-all;
+        }
+        
+        .document-card .meta {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-tertiary);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--error); }
+        .toast.warning { background: var(--warning); }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="/static/logo.png" alt="Logo" onerror="this.style.display='none'">
+            <h1>◈ RAG System</h1>
+        </div>
+        <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Connexion...</span>
+        </div>
+    </header>
+    
+    <main class="container">
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <div class="upload-zone" id="uploadZone">
+                <h3>📁 Glissez vos documents ici</h3>
+                <p>ou cliquez pour sélectionner (PDF, DOCX, PPTX, XLSX, TXT, MSG)</p>
+                <input type="file" id="fileInput" multiple accept=".pdf,.docx,.pptx,.xlsx,.txt,.msg,.eml">
+            </div>
+        </section>
+        
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-box">
+                <input type="text" id="queryInput" placeholder="Posez votre question en langage naturel...">
+                <button id="searchBtn">🔍 Rechercher</button>
+            </div>
+        </section>
+        
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Recherche en cours...</p>
+        </div>
+        
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection" style="display: none;">
+            <div class="response-card">
+                <h3>💬 Réponse</h3>
+                <div class="response-text" id="responseText"></div>
+                <div class="confidence-bar">
+                    <span>Confiance:</span>
+                    <div class="confidence-track">
+                        <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
+                    </div>
+                    <span id="confidenceValue">0%</span>
+                </div>
+                <div class="sources-section" id="sourcesSection">
+                    <h4>📚 Sources utilisées</h4>
+                    <div id="sourcesList"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Documents Section -->
+        <section class="documents-section">
+            <h2>
+                📚 Documents indexés
+                <button class="refresh-btn" onclick="loadDocuments()">🔄 Rafraîchir</button>
+            </h2>
+            <div class="documents-grid" id="documentsGrid">
+                <div class="empty-state">
+                    <p>Aucun document indexé</p>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        const API_BASE = '';
+        
+        // Elements
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const queryInput = document.getElementById('queryInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const loading = document.getElementById('loading');
+        const resultsSection = document.getElementById('resultsSection');
+        const responseText = document.getElementById('responseText');
+        const confidenceFill = document.getElementById('confidenceFill');
+        const confidenceValue = document.getElementById('confidenceValue');
+        const sourcesList = document.getElementById('sourcesList');
+        const documentsGrid = document.getElementById('documentsGrid');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const toast = document.getElementById('toast');
+        
+        // File type icons
+        const fileIcons = {
+            'pdf': '📕',
+            'docx': '📘',
+            'doc': '📘',
+            'pptx': '📙',
+            'ppt': '📙',
+            'xlsx': '📗',
+            'xls': '📗',
+            'txt': '📄',
+            'msg': '📧',
+            'eml': '📧'
+        };
+        
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        // Format file size
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+        }
+        
+        // Get file icon
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            return fileIcons[ext] || '📄';
+        }
+        
+        // Check health
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/api/health`);
+                const data = await res.json();
+                
+                if (data.status === 'healthy') {
+                    statusDot.style.background = 'var(--success)';
+                    statusText.textContent = 'Système opérationnel';
+                } else {
+                    statusDot.style.background = 'var(--warning)';
+                    statusText.textContent = 'Mode dégradé';
+                }
+            } catch (e) {
+                statusDot.style.background = 'var(--error)';
+                statusText.textContent = 'Hors ligne';
+            }
+        }
+        
+        // Load documents
+        async function loadDocuments() {
+            try {
+                const res = await fetch(`${API_BASE}/api/documents`);
+                const data = await res.json();
+                
+                if (data.documents && data.documents.length > 0) {
+                    documentsGrid.innerHTML = data.documents.map(doc => `
+                        <div class="document-card">
+                            <div class="icon">${getFileIcon(doc.name)}</div>
+                            <div class="name">${doc.name}</div>
+                            <div class="meta">${formatSize(doc.size_bytes)}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    documentsGrid.innerHTML = '<div class="empty-state"><p>Aucun document indexé</p></div>';
+                }
+            } catch (e) {
+                console.error('Erreur chargement documents:', e);
+            }
+        }
+        
+        // Upload file
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/ingest`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    showToast(`✓ ${file.name} indexé (${data.chunks} chunks)`, 'success');
+                    loadDocuments();
+                } else {
+                    showToast(`✗ Erreur: ${data.error || 'Échec indexation'}`, 'error');
+                }
+            } catch (e) {
+                showToast(`✗ Erreur upload: ${e.message}`, 'error');
+            }
+        }
+        
+        // Search
+        async function search() {
+            const query = queryInput.value.trim();
+            if (!query) return;
+            
+            loading.classList.add('active');
+            resultsSection.style.display = 'none';
+            searchBtn.disabled = true;
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, top_k: 5, rerank: true })
+                });
+                
+                const data = await res.json();
+                
+                responseText.textContent = data.response;
+                
+                const confidence = Math.round(data.confidence * 100);
+                confidenceFill.style.width = `${confidence}%`;
+                confidenceValue.textContent = `${confidence}%`;
+                
+                if (data.sources && data.sources.length > 0) {
+                    sourcesList.innerHTML = data.sources.map(s => `
+                        <div class="source-item">
+                            <span class="file-name">${getFileIcon(s.file_name || 'doc')} ${s.file_name || 'Document'}</span>
+                            <div class="excerpt">${s.text ? s.text.substring(0, 200) + '...' : ''}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    sourcesList.innerHTML = '<p style="color: var(--text-muted)">Aucune source</p>';
+                }
+                
+                resultsSection.style.display = 'block';
+                
+            } catch (e) {
+                showToast(`Erreur recherche: ${e.message}`, 'error');
+            } finally {
+                loading.classList.remove('active');
+                searchBtn.disabled = false;
+            }
+        }
+        
+        // Event listeners
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            for (const file of files) {
+                uploadFile(file);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            for (const file of e.target.files) {
+                uploadFile(file);
+            }
+            fileInput.value = '';
+        });
+        
+        searchBtn.addEventListener('click', search);
+        
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') search();
+        });
+        
+        // Init
+        checkHealth();
+        loadDocuments();
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>
+

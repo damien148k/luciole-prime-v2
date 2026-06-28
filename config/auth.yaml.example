@@ -1,0 +1,25 @@
+# ============================================================
+# Luciole — Configuration d'authentification (TEMPLATE)
+# ============================================================
+# Copiez ce fichier vers `auth.yaml` puis générez vos propres
+# valeurs. NE COMMITEZ JAMAIS le fichier `auth.yaml` rempli.
+# ============================================================
+
+credentials:
+  usernames:
+    admin:
+      email: admin@example.local
+      name: Administrateur
+      # Pour générer un hash bcrypt :
+      #   python -c "import bcrypt; print(bcrypt.hashpw(b'VOTRE_MOT_DE_PASSE', bcrypt.gensalt(12)).decode())"
+      password: "REMPLACER_PAR_VOTRE_HASH_BCRYPT"
+
+roles:
+  admin: [admin_ui, feedback_ui, ragas]
+
+cookie:
+  name: luciole_admin
+  # Pour générer une clé aléatoire de 32 caractères :
+  #   python -c "import secrets; print(secrets.token_urlsafe(24))"
+  key: "REMPLACER_PAR_UNE_CLE_ALEATOIRE_32_CHARS"
+  expiry_days: 1
