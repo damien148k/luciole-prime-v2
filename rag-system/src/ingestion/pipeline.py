@@ -654,3 +654,66 @@ Recherche: logo charte graphique visuel image {all_keywords}"""
             "chunk_size": self.config["chunking"]["chunk_size"]
         }
 
+class IngestionTracker:
+    """
+    Tracker léger pour la reprise d'ingestion.
+    Stocke l'état dans un fichier SQLite par index.
+    Remplace l'ancien tracker JSON supprimé en v2.
+    """
+
+    def __init__(self, index_name: str, db_dir: str = "/app/data"):
+        import sqlite3
+        from pathlib import Path
+        self.index_name = index_name
+        db_path = Path(db_dir) / f"tracker_{index_name}.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path = str(db_path)
+        self._init_db()
+
+    def _init_db(self):
+        import sqlite3
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS indexed_files (
+                    file_path TEXT PRIMARY KEY,
+                    chunks INTEGER DEFAULT 0,
+                    indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+    def is_indexed(self, file_path: str) -> bool:
+        import sqlite3
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                "SELECT 1 FROM indexed_files WHERE file_path = ?", (str(file_path),)
+            )
+            return cur.fetchone() is not None
+
+    def mark_indexed(self, file_path: str, chunks: int = 0):
+        import sqlite3
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO indexed_files (file_path, chunks, indexed_at)
+                   VALUES (?, ?, CURRENT_TIMESTAMP)""",
+                (str(file_path), chunks)
+            )
+            conn.commit()
+
+    def get_pending_files(self, files: list) -> list:
+        """Retourne les fichiers non encore indexés."""
+        return [f for f in files if not self.is_indexed(f)]
+
+    def get_stats(self) -> dict:
+        import sqlite3
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute("SELECT file_path FROM indexed_files")
+            indexed = [row[0] for row in cur.fetchall()]
+        return {"indexed_files": indexed, "count": len(indexed)}
+
+    def reset(self):
+        import sqlite3
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM indexed_files")
+            conn.commit()
+        logger.info(f"IngestionTracker reset pour index: {self.index_name}")
