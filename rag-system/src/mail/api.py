@@ -13,6 +13,7 @@ Règles de sécurité :
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Optional
 
@@ -85,7 +86,7 @@ class MailSettingsUpdate(BaseModel):
     allowed_sender_domains: list = Field(default_factory=list)
     blocked_sender_domains: list = Field(default_factory=list)
     max_attachment_size_mb: int = Field(25, ge=1, le=100)
-    index_name: str = "documents"
+    index_name: str = Field(default_factory=lambda: os.environ.get("MAIL_DEFAULT_INDEX", "documents"))
     sensitive_keywords: list = Field(default_factory=list)
 
 
