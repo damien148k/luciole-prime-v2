@@ -278,6 +278,9 @@ MAIL_DB_PATH=/app/feedbacks/mail.db
 MAIL_ATTACHMENTS_PATH=/app/feedbacks/mail_attachments
 MAIL_ENCRYPTION_KEY=$MAIL_ENC_KEY
 
+# Index RAG pour le module mail (nom de l'index ingere pour ce client)
+MAIL_DEFAULT_INDEX=$INSTANCE_NAME
+
 # Offline
 HF_HUB_OFFLINE=1
 TRANSFORMERS_OFFLINE=1

@@ -283,6 +283,9 @@ MAIL_DB_PATH=/app/feedbacks/mail.db
 MAIL_ATTACHMENTS_PATH=/app/feedbacks/mail_attachments
 MAIL_ENCRYPTION_KEY=$MAIL_ENC_KEY
 
+# Index RAG pour le module mail (nom de l'index ingere pour ce client)
+MAIL_DEFAULT_INDEX=$INSTANCE_NAME
+
 # Offline
 HF_HUB_OFFLINE=1
 TRANSFORMERS_OFFLINE=1
@@ -370,13 +373,30 @@ else
     docker exec "$OLLAMA_CONTAINER" ollama pull "$MODEL"
 fi
 
+# BGE-M3 : conversion safetensors (obligatoire, evite CVE-2025-32434)
+echo ""
+echo "  Preparation du modele BGE-M3 (conversion safetensors)..."
+AGENT_CONTAINER="luciole-agent-$INSTANCE_NAME"
+
+# Lancer l'agent temporairement pour faire la conversion dans le container
+docker compose --profile "$PROFILE" up -d agent
+echo "  Attente demarrage agent (15 s)..."
+sleep 15
+
+if docker exec "$AGENT_CONTAINER" test -f /app/setup_bge_model.py 2>/dev/null; then
+    docker exec "$AGENT_CONTAINER" python3 /app/setup_bge_model.py && ok "BGE-M3 converti en safetensors" || warn "Conversion BGE-M3 echouee -- verifiez les logs : docker compose logs agent"
+else
+    warn "setup_bge_model.py absent du container -- BGE-M3 non converti"
+    warn "Lancez manuellement apres installation : docker exec $AGENT_CONTAINER python3 /app/setup_bge_model.py"
+fi
+
 # Demarrage complet
 step "8/8" "Demarrage complet..."
 
 docker compose --profile "$PROFILE" up -d
 
-echo "  Attente stabilisation (20 s)..."
-sleep 20
+echo "  Attente stabilisation (30 s)..."
+sleep 30
 
 # Resume
 echo ""
