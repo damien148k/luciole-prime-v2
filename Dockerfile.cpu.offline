@@ -46,9 +46,7 @@ RUN mkdir -p /app/models/huggingface /app/models/sentence_transformers /app/mode
 
 COPY rag-system/easyocr_models/ /app/models/easyocr/
 
-RUN mkdir -p /app/src/api/static
-COPY rag-system/pics/luciole.png /app/src/api/static/logo.png
-COPY rag-system/pics/luciole.png /app/src/api/static/favicon.png
+# logo.png et favicon.png servis depuis src/api/static/ (COPY rag-system/src/ ci-dessus)
 
 EXPOSE 8000 8080 8501 8503
 

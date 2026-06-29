@@ -51,9 +51,7 @@ RUN mkdir -p /app/models/huggingface /app/models/sentence_transformers /app/mode
 
 # easyocr_models/ non inclus dans le dépôt — dossier déjà créé ci-dessus, les modèles se téléchargent à la première utilisation
 
-RUN mkdir -p /app/src/api/static
-COPY pics/luciole.png /app/src/api/static/logo.png
-COPY pics/luciole.png /app/src/api/static/favicon.png
+# logo.png et favicon.png servis depuis src/api/static/ (COPY src/ ci-dessus)
 
 # Chaque container n'expose qu'un seul port (défini par la commande du service)
 # EXPOSE est indicatif — le port réel est fixé dans docker-compose.yml

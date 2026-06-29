@@ -188,13 +188,14 @@ class TestHandleDelete:
         job_upsert = Job(file_path=str(f), action="upsert")
         worker._handle_upsert(job_upsert)
         source_id = state.get_document_by_path(str(f)).source_id
+        file_name = state.get_document_by_path(str(f)).file_name
         cleaner.delete_document_chunks.reset_mock()
 
         # Supprimer
         job_delete = Job(file_path=str(f), action="delete")
         worker._handle_delete(job_delete)
 
-        cleaner.delete_document_chunks.assert_called_once_with(source_id, "test_documents")
+        cleaner.delete_document_chunks.assert_called_once_with(file_name, "test_documents")
         doc = state.get_document_by_source_id(source_id)
         assert doc.status == DocumentStatus.DELETED
         assert doc.deleted_at is not None
