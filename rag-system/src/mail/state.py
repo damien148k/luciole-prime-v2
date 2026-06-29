@@ -7,6 +7,7 @@ Pas d'ORM, sqlite3 brut (cohérent avec le reste du projet).
 from __future__ import annotations
 
 import json
+import os
 import traceback
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -757,7 +758,7 @@ def _row_to_mail_settings(row: dict) -> MailSettings:
         blocked_sender_domains=row.get("blocked_sender_domains", "[]"),
         max_attachment_size_mb=row.get("max_attachment_size_mb", 25),
         attachment_indexing_enabled=bool(row.get("attachment_indexing_enabled", False)),
-        index_name=row.get("index_name", "documents"),
+        index_name=row.get("index_name") or os.environ.get("MAIL_DEFAULT_INDEX", "documents"),
         sensitive_keywords=row.get("sensitive_keywords", "[]"),
         updated_at=_parse_dt(row.get("updated_at")),
         updated_by=row.get("updated_by", "system"),
