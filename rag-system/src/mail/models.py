@@ -7,6 +7,7 @@ du projet (sqlite3 brut, cohérent avec feedbacks.db / watcher.db).
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
@@ -67,7 +68,7 @@ class MailSettings:
     blocked_sender_domains: str = "[]"      # JSON array
     max_attachment_size_mb: int = 25
     attachment_indexing_enabled: bool = False
-    index_name: str = "documents"
+    index_name: str = field(default_factory=lambda: os.environ.get("MAIL_DEFAULT_INDEX", "documents"))
     sensitive_keywords: str = json.dumps([  # JSON array
         "licenciement", "contentieux", "plainte", "rgpd",
         "confidentiel", "disciplinaire", "juridique",
