@@ -731,3 +731,79 @@ class TestInboundPipelineMocked:
 
         # Le RAG ne doit pas avoir été appelé
         assert len(rag_called) == 0
+
+
+# =============================================================================
+# Tests de construction de la query RAG (_build_query)
+# =============================================================================
+
+
+class TestBuildQuery:
+    """Vérifie que la query envoyée au RAG est propre, sans préfixe parasite."""
+
+    @staticmethod
+    def _make_inbound(subject="", body=""):
+        from src.mail.models import InboundMessage
+        return InboundMessage(
+            id=1,
+            message_id="<test@local>",
+            from_address="user@exemple.fr",
+            to_addresses="luciole@exemple.fr",
+            subject=subject,
+            body_text=body,
+        )
+
+    def test_body_only_no_parasitic_prefix(self):
+        """Le corps doit être envoyé BRUT, sans préfixe 'Question :'."""
+        from src.mail.draft_service import DraftService
+        inbound = self._make_inbound(subject="test", body="Qui est le maire de Chavenay ?")
+        query = DraftService._build_query(inbound, thread=None)
+        # Le corps brut DOIT être dans la query
+        assert "Qui est le maire de Chavenay ?" in query
+        # Le préfixe parasite NE DOIT PAS apparaître
+        assert "Question :" not in query
+        assert "Sujet de la demande" not in query
+        # Le sujet trivial "test" doit être ignoré
+        assert "test" not in query.lower() or "chavenay" in query.lower()
+
+    def test_trivial_subject_ignored(self):
+        """Les sujets triviaux (test/re:/fwd) ne doivent pas polluer la query."""
+        from src.mail.draft_service import DraftService
+        for trivial in ["test", "Test", "Re:", "Fwd:", "Tr:", "essai", "ping", "bonjour"]:
+            inbound = self._make_inbound(subject=trivial, body="Quel est le budget 2024 ?")
+            query = DraftService._build_query(inbound, thread=None)
+            assert "Sujet du mail" not in query, f"Sujet trivial '{trivial}' inclus dans la query"
+            assert "Quel est le budget 2024 ?" in query
+
+    def test_informative_subject_kept(self):
+        """Un sujet informatif (≥ 3 mots utiles) doit enrichir la query."""
+        from src.mail.draft_service import DraftService
+        inbound = self._make_inbound(
+            subject="Demande d'informations sur le budget municipal",
+            body="Pouvez-vous me détailler les postes ?",
+        )
+        query = DraftService._build_query(inbound, thread=None)
+        assert "Pouvez-vous me détailler les postes ?" in query
+        assert "Sujet du mail" in query
+        assert "budget municipal" in query
+
+    def test_empty_body_falls_back_to_subject(self):
+        """Corps vide → fallback sur le sujet (même trivial, mieux que rien)."""
+        from src.mail.draft_service import DraftService
+        inbound = self._make_inbound(subject="chavenay", body="")
+        query = DraftService._build_query(inbound, thread=None)
+        assert query == "chavenay"
+
+    def test_is_informative_subject(self):
+        """Tests unitaires sur le détecteur de sujet informatif."""
+        from src.mail.draft_service import DraftService
+        # Non informatifs
+        assert DraftService._is_informative_subject("") is False
+        assert DraftService._is_informative_subject("test") is False
+        assert DraftService._is_informative_subject("Test ") is False
+        assert DraftService._is_informative_subject("Re:") is False
+        assert DraftService._is_informative_subject("Re: chavenay") is False  # 1 mot utile
+        assert DraftService._is_informative_subject("deux mots") is False  # 2 mots
+        # Informatifs
+        assert DraftService._is_informative_subject("Demande budget 2024") is True
+        assert DraftService._is_informative_subject("Re: Demande budget 2024") is True
