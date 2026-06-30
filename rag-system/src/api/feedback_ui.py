@@ -1539,7 +1539,19 @@ Tu es l'assistant du service juridique. Réponds de manière précise et cite le
                 const data = await response.json();
                 const select = document.getElementById('index');
                 select.innerHTML = '';
-                
+
+                // Mode mono-instance : 1 instance = 1 metier = 1 index
+                if (data.single_index_mode && data.instance_name) {
+                    const option = document.createElement('option');
+                    option.value = data.instance_name;
+                    option.textContent = data.instance_name;
+                    select.appendChild(option);
+                    select.value = data.instance_name;
+                    select.disabled = true;
+                    select.title = 'Instance : ' + data.instance_name + ' (selection forcee)';
+                    return;
+                }
+
                 const validIndexes = data.indexes.filter(idx => 
                     !(idx.name === 'documents' && data.indexes.length > 1)
                 );

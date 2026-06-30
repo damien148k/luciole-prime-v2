@@ -20,7 +20,10 @@ Durée estimée : 3 à 5 minutes (téléchargement ~2.3 Go + conversion)
 from pathlib import Path
 from huggingface_hub import hf_hub_download
 
-HF_CACHE = "/app/models/huggingface"
+# IMPORTANT : on ecrit dans le sous-dossier `hub/` car c'est l'emplacement
+# standard du cache HuggingFace (HF_HOME/hub) et celui qu'embedder.py /
+# reranker.py cherchent en premier (cf. _get_local_model_path).
+HF_CACHE = "/app/models/huggingface/hub"
 REPO_ID  = "BAAI/bge-m3"
 
 # ─── Étape 1 : Télécharger tous les fichiers de config ────────────────────────

@@ -11,8 +11,8 @@ retrieval:
   rerank_top_n: 15
 reranker:
   model: BAAI/bge-reranker-v2-m3
-  device: cpu
-  batch_size: 8
+  device: auto       # auto = CUDA si dispo, sinon CPU (override possible via RERANKER_DEVICE)
+  batch_size: 32
 llm:
   provider: ollama
   model: qwen2.5:14b-instruct-q4_K_M
@@ -73,11 +73,11 @@ pdf:
 opensearch:
   host: localhost
   port: 9200
-  index_name: documents
+  index_name: documents          # remplacé par INSTANCE_NAME au runtime (cf. agent/api.py)
 qdrant:
   host: localhost
   port: 6333
-  collection_name: documents
+  collection_name: documents     # remplacé par INSTANCE_NAME au runtime (cf. agent/api.py)
   distance: cosine
 api:
   host: 0.0.0.0
