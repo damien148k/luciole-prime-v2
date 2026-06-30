@@ -78,6 +78,7 @@ class DraftService:
 
         response_text  = rag_result.get("response", "")
         sources        = rag_result.get("sources", [])
+        passages       = rag_result.get("passages", [])
         rag_confidence = rag_result.get("confidence", confidence_score)
 
         # ── 3. Guardrails post-génération ─────────────────────────────────
@@ -103,6 +104,7 @@ class DraftService:
             thread_id          = inbound.thread_id,
             generated_response = response_text,
             sources_used       = json.dumps(sources, ensure_ascii=False),
+            passages_used      = json.dumps(passages, ensure_ascii=False),
             rag_query          = rag_query,
             confidence_score   = float(rag_confidence),
             risk_score         = risk_score,
@@ -127,6 +129,7 @@ class DraftService:
                 "confidence": float(rag_confidence),
                 "risk": risk_score,
                 "sources_count": len(sources),
+                "passages_count": len(passages),
                 "category": classification_category,
             },
         )

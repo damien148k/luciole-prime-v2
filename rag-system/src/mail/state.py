@@ -379,14 +379,14 @@ class DraftRepo:
             cur.execute("""
                 INSERT INTO draft_approvals
                     (inbound_message_id, thread_id,
-                     generated_response, sources_used, rag_query,
+                     generated_response, sources_used, passages_used, rag_query,
                      confidence_score, risk_score,
                      classification, decision_reason,
                      status, created_at, expires_at)
-                VALUES (?,?,?,?,?,?,?,?,?,'pending',?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,'pending',?,?)
             """, (
                 draft.inbound_message_id, draft.thread_id,
-                draft.generated_response, draft.sources_used, draft.rag_query,
+                draft.generated_response, draft.sources_used, draft.passages_used, draft.rag_query,
                 draft.confidence_score, draft.risk_score,
                 draft.classification, draft.decision_reason,
                 now_utc(), expires,
@@ -818,6 +818,7 @@ def _row_to_draft(row: dict) -> DraftApproval:
         thread_id=row.get("thread_id"),
         generated_response=row.get("generated_response", ""),
         sources_used=row.get("sources_used", "[]"),
+        passages_used=row.get("passages_used", "[]"),
         rag_query=row.get("rag_query"),
         confidence_score=row.get("confidence_score", 0.0),
         risk_score=row.get("risk_score", 0.0),
