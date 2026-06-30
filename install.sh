@@ -194,6 +194,12 @@ ok "Repertoires crees"
 # Copier la configuration
 echo "  Copie de la configuration..."
 cp -r "$SCRIPT_DIR/config/"* "$INSTANCE_PATH/config/"
+
+# Generer settings.yaml depuis l'example si absent (config par instance, non versionnee)
+if [ ! -f "$INSTANCE_PATH/config/settings.yaml" ] && [ -f "$INSTANCE_PATH/config/settings.yaml.example" ]; then
+    cp "$INSTANCE_PATH/config/settings.yaml.example" "$INSTANCE_PATH/config/settings.yaml"
+    ok "settings.yaml genere depuis settings.yaml.example"
+fi
 ok "Configuration copiee"
 
 # Copier docker-compose.yml

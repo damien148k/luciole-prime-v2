@@ -191,6 +191,12 @@ if [ -f "$PACKAGE_PATH/config/config/auth.yaml" ]; then
 elif [ -d "$PACKAGE_PATH/config" ]; then
     cp -r "$PACKAGE_PATH/config/"* "$INSTANCE_PATH/config/"
 fi
+
+# Generer settings.yaml depuis l'example si absent (config par instance, non versionnee)
+if [ ! -f "$INSTANCE_PATH/config/settings.yaml" ] && [ -f "$INSTANCE_PATH/config/settings.yaml.example" ]; then
+    cp "$INSTANCE_PATH/config/settings.yaml.example" "$INSTANCE_PATH/config/settings.yaml"
+    ok "settings.yaml genere depuis settings.yaml.example"
+fi
 ok "Configuration copiee"
 
 cp "$PACKAGE_PATH/docker-compose.yml" "$INSTANCE_PATH/docker-compose.yml"
