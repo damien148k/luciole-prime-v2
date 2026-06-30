@@ -152,9 +152,6 @@ if ! docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${LUCIOLE_IMA
     if [ "$PROFILE" = "cpu" ] && docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^luciole-gpu:latest$"; then
         docker tag luciole-gpu:latest luciole-cpu:latest
         warn "luciole-cpu:latest absent -- luciole-gpu tague comme luciole-cpu"
-    if [ "$PROFILE" = "cpu" ] && docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^luciole-gpu:latest$"; then
-        docker tag luciole-gpu:latest luciole-cpu:latest
-        warn "luciole-cpu:latest absent -- luciole-gpu tague comme luciole-cpu"
     elif [ "$PROFILE" = "gpu" ] && docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^luciole-cpu:latest$"; then
         docker tag luciole-cpu:latest luciole-gpu:latest
         warn "luciole-gpu:latest absent -- luciole-cpu tague comme luciole-gpu"
