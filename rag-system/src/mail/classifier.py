@@ -51,28 +51,45 @@ class EmailClassifier:
         """
         Classifie un email et retourne un ClassificationResult avec decision.
 
-        L'appel LLM est tenté si les règles ne permettent pas de conclure.
-        """
-        result = ClassificationResult()
+        Classification (règles + LLM) DÉSACTIVÉE volontairement :
+        tout mail entrant est traité comme question_documentaire → brouillon.
+        Seuls les garde-fous anti-boucle critiques restent actifs :
+          - auto-reply / bounce détecté → quarantaine
+          - dépassement du nombre de réponses par thread/heure → quarantaine
 
-        # ── Passe 1 : règles déterministes ────────────────────────────────
-        rule_result = self._rule_based(email, settings, thread_reply_count_last_hour)
-        if rule_result is not None:
-            result = rule_result
+        Pour réactiver la classification complète, restaurer les appels à
+        self._rule_based() et self._llm_classify() (code conservé ci-dessous).
+        """
+        # ── Garde-fou 1 : auto-reply / bounce (anti-boucle SMTP) ──────────
+        if email.is_auto_reply:
+            result = ClassificationResult(
+                category=EmailCategory.SPAM,
+                confidence_score=0.99,
+                risk_score=0.0,
+                decision=RoutingDecision.QUARANTINE,
+                decision_reason=f"Auto-reply/bounce détecté : {email.auto_reply_reason}",
+            )
+        # ── Garde-fou 2 : anti-boucle conversationnelle ───────────────────
+        elif thread_reply_count_last_hour >= MAX_REPLY_PER_THREAD_PER_HOUR:
+            result = ClassificationResult(
+                category=EmailCategory.SPAM,
+                confidence_score=0.95,
+                risk_score=0.5,
+                decision=RoutingDecision.QUARANTINE,
+                decision_reason=(
+                    f"Anti-boucle : {thread_reply_count_last_hour} réponses "
+                    f"déjà envoyées sur ce thread dans l'heure"
+                ),
+            )
         else:
-            # ── Passe 2 : classification LLM ─────────────────────────────
-            llm_result = self._llm_classify(email)
-            if llm_result is not None:
-                result = llm_result
-            else:
-                # Fallback : question documentaire avec confiance basse
-                result = ClassificationResult(
-                    category=EmailCategory.QUESTION_DOCUMENTAIRE,
-                    confidence_score=0.40,
-                    risk_score=0.20,
-                    decision=RoutingDecision.DRAFT,
-                    decision_reason="Classification LLM indisponible — brouillon par précaution",
-                )
+            # ── Classification désactivée : traitement direct ─────────────
+            result = ClassificationResult(
+                category=EmailCategory.QUESTION_DOCUMENTAIRE,
+                confidence_score=1.0,
+                risk_score=0.0,
+                decision=RoutingDecision.DRAFT,
+                decision_reason="Classification désactivée — traitement direct (confiance utilisateur)",
+            )
 
         # ── Surcharges de politique ────────────────────────────────────────
         result = self._apply_policy_overrides(result, email, settings, thread_reply_count_last_hour)

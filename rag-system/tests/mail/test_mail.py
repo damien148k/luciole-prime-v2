@@ -310,6 +310,8 @@ class TestClassifier:
         assert result.confidence_score >= 0.9
 
     def test_blocked_domain_quarantined(self):
+        # Classification désactivée : les domaines bloqués ne sont plus filtrés.
+        # Tout mail entrant non-bounce est traité directement → DRAFT.
         from src.mail.classifier import EmailClassifier
         from src.mail.constants import RoutingDecision
         from src.mail.models import MailSettings
@@ -322,9 +324,11 @@ class TestClassifier:
         )
         email = self._make_parsed_email(from_addr="hacker@spam-domain.com")
         result = EmailClassifier().classify(email, settings)
-        assert result.decision == RoutingDecision.QUARANTINE
+        assert result.decision == RoutingDecision.DRAFT
 
     def test_sensitive_keyword_forces_draft(self):
+        # Classification désactivée : les mots-clés sensibles ne sont plus
+        # détectés. Le mail est traité normalement → DRAFT (sans riskélevé).
         from src.mail.classifier import EmailClassifier
         from src.mail.constants import RoutingDecision
         email = self._make_parsed_email(
@@ -333,7 +337,6 @@ class TestClassifier:
         )
         result = EmailClassifier().classify(email, self._default_settings())
         assert result.decision == RoutingDecision.DRAFT
-        assert result.risk_score >= 0.6
 
     def test_human_request_escalated(self):
         from src.mail.classifier import EmailClassifier
