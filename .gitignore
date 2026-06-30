@@ -106,3 +106,7 @@ data/mail/
 
 # Données runtime Stalwart Mail (boîtes, SQLite)
 mail-server/data/
+
+# --- Config par instance (gÃ©nÃ©rÃ© par install.sh depuis settings.yaml.example) ---
+config/settings.yaml
+config/auth.yaml

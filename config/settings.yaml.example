@@ -15,7 +15,7 @@ reranker:
   batch_size: 8
 llm:
   provider: ollama
-  model: qwen2.5:7b
+  model: qwen2.5:14b-instruct-q4_K_M
   base_url: http://ollama:11434
   api_format: openai
   temperature: 0.1
