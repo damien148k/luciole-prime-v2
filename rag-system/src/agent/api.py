@@ -106,6 +106,35 @@ _reranker = None
 _query_rewriter = None
 _config = None
 
+# ============================================================================
+# Index unique par instance (règle: 1 instance = 1 métier = 1 index)
+# Si INSTANCE_NAME est défini dans l'environnement, l'agent ignore tout
+# paramètre `index_name` reçu et force systématiquement cette valeur.
+# ============================================================================
+INSTANCE_NAME = os.environ.get("INSTANCE_NAME", "").strip().lower() or None
+if INSTANCE_NAME:
+    logger.info(f"🎯 INSTANCE_NAME défini : '{INSTANCE_NAME}' — index forcé pour toutes les requêtes")
+
+
+def _resolve_index_name(requested: Optional[str]) -> str:
+    """
+    Résout l'index_name effectif selon la règle '1 instance = 1 index'.
+
+    - Si INSTANCE_NAME est défini (env var), on l'utilise toujours (le paramètre
+      reçu de l'UI ou du client API est ignoré).
+    - Sinon, on garde le comportement historique (param reçu, ou fallback config).
+    """
+    if INSTANCE_NAME:
+        if requested and requested != INSTANCE_NAME:
+            logger.debug(
+                f"index_name '{requested}' reçu mais ignoré — "
+                f"force '{INSTANCE_NAME}' (INSTANCE_NAME)"
+            )
+        return INSTANCE_NAME
+    if requested:
+        return requested
+    return _get_config()["qdrant"]["collection_name"]
+
 
 def _get_config():
     """Charge la config une seule fois avec override par variables d'environnement"""
@@ -211,9 +240,8 @@ def get_analyzer(index_name: str = None):
     
     config = _get_config()
     
-    # Déterminer l'index à utiliser
-    if index_name is None:
-        index_name = config["qdrant"]["collection_name"]
+    # Déterminer l'index à utiliser (force INSTANCE_NAME si défini)
+    index_name = _resolve_index_name(index_name)
     
     # Vérifier le cache
     if index_name in _analyzers:
@@ -444,16 +472,48 @@ async def health_check():
         }
 
 
+@app.get("/api/instance")
+async def get_instance_info():
+    """
+    Expose l'identité de l'instance courante pour les UI.
+
+    Retourne le nom de l'instance (depuis l'env INSTANCE_NAME), pour permettre
+    aux UI d'afficher un bandeau et de masquer le sélecteur d'index.
+    """
+    return {
+        "instance_name": INSTANCE_NAME,
+        "single_index_mode": bool(INSTANCE_NAME),
+    }
+
+
 @app.get("/api/indexes")
 async def list_indexes():
     """
     Liste les index disponibles (collections Qdrant et index OpenSearch).
     Permet à l'UI de proposer une sélection.
+
+    Règle '1 instance = 1 index' : si INSTANCE_NAME est défini, on ne retourne
+    QUE cet index (même s'il n'existe pas encore côté Qdrant/OpenSearch),
+    pour masquer le sélecteur côté UI.
     """
     try:
         import httpx
         config = _get_config()
-        
+
+        # Mode mono-index : on retourne uniquement l'instance courante
+        if INSTANCE_NAME:
+            return {
+                "indexes": [{
+                    "name": INSTANCE_NAME,
+                    "type": "qdrant",
+                    "opensearch_index": INSTANCE_NAME.lower(),
+                    "has_opensearch": True,
+                }],
+                "default": INSTANCE_NAME,
+                "instance_name": INSTANCE_NAME,
+                "single_index_mode": True,
+            }
+
         indexes = []
         
         # Récupérer les collections Qdrant
@@ -502,12 +562,16 @@ async def list_indexes():
         
         return {
             "indexes": indexes,
-            "default": default_name
+            "default": default_name,
+            "instance_name": None,
+            "single_index_mode": False,
         }
     except Exception as e:
         return {
             "indexes": [],
             "default": None,
+            "instance_name": INSTANCE_NAME,
+            "single_index_mode": bool(INSTANCE_NAME),
             "error": str(e)
         }
 
@@ -529,7 +593,7 @@ async def analyze(request: AnalyzeRequest):
     """
     try:
         # Utiliser l'index spécifié ou celui par défaut
-        analyzer = get_analyzer(index_name=request.index_name)
+        analyzer = get_analyzer(index_name=_resolve_index_name(request.index_name))
         
         scope = request.scope.dict() if request.scope else None
         options = request.options.dict() if request.options else None
@@ -542,7 +606,7 @@ async def analyze(request: AnalyzeRequest):
         )
         
         # Ajouter l'info sur l'index utilisé
-        result["index_name"] = request.index_name or _get_config()["qdrant"]["collection_name"]
+        result["index_name"] = _resolve_index_name(request.index_name)
         
         return result
         
@@ -784,7 +848,7 @@ async def simple_query(request: QueryRequest):
                 logger.info(f"Query rewritten: '{contextualized_query}' → '{rewritten_query}' (type: {query_type}, {len(rewritten_queries)} variantes)")
         
         # Utiliser l'index spécifié ou celui par défaut
-        analyzer = get_analyzer(index_name=request.index_name)
+        analyzer = get_analyzer(index_name=_resolve_index_name(request.index_name))
         
         # DEBUG: Log de la query avant d'appeler l'analyzer
         logger.info(f"DEBUG API - Query to analyzer: '{rewritten_query}' (len={len(rewritten_query)})")
@@ -870,7 +934,7 @@ async def simple_query(request: QueryRequest):
             "sources": result.get("sources", []),
             "passages": passages,
             "mode": "chat",
-            "index_name": request.index_name or _get_config()["qdrant"]["collection_name"],
+            "index_name": _resolve_index_name(request.index_name),
             "processing_time_ms": result.get("metadata", {}).get("processing_time_ms", 0)
         }
         

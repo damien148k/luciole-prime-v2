@@ -1154,6 +1154,26 @@ async function loadIndexes(){
     select.innerHTML='';
     mirror.innerHTML='';
 
+    // Mode mono-instance : 1 instance = 1 metier = 1 index force par INSTANCE_NAME
+    if(data.single_index_mode && data.instance_name){
+      const name=data.instance_name;
+      const opt=document.createElement('option');
+      opt.value=name; opt.textContent=name;
+      select.appendChild(opt);
+      const opt2=opt.cloneNode(true); mirror.appendChild(opt2);
+      select.value=name;
+      mirror.value=name;
+      document.getElementById('currentIndex').textContent=name;
+      // Masquer la ligne 'Index actif' dans le drawer (selecteur inutile)
+      const mirrorField=mirror.closest('.field');
+      if(mirrorField) mirrorField.style.display='none';
+      // Rendre la pill non-cliquable (informative uniquement)
+      const pill=document.querySelector('.index-pill');
+      if(pill){ pill.onclick=null; pill.style.cursor='default'; pill.title='Instance : '+name; }
+      updateStatus(true);
+      return;
+    }
+
     const validIndexes=(data.indexes||[]).filter(idx=>{
       if(idx.name==='documents' && data.indexes.length>1) return false;
       return true;

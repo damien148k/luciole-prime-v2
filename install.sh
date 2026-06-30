@@ -172,13 +172,14 @@ SUDO=""
 [ "$(id -u)" != "0" ] && SUDO="sudo"
 
 $SUDO mkdir -p \
+    "$INSTANCE_PATH/data/$INSTANCE_NAME" \
     "$INSTANCE_PATH/data/uploads" \
     "$INSTANCE_PATH/data/processed" \
     "$INSTANCE_PATH/backups" \
     "$INSTANCE_PATH/config" \
     "$INSTANCE_PATH/feedbacks" \
     "$INSTANCE_PATH/evaluation/datasets" \
-    "$INSTANCE_PATH/models/huggingface" \
+    "$INSTANCE_PATH/models/huggingface/hub" \
     "$INSTANCE_PATH/models/ollama" \
     "$INSTANCE_PATH/src_overrides/agent" \
     "$INSTANCE_PATH/src_overrides/api" \
@@ -289,6 +290,13 @@ MAIL_ENCRYPTION_KEY=$MAIL_ENC_KEY
 # Index RAG pour le module mail (nom de l'index ingere pour ce client)
 MAIL_DEFAULT_INDEX=$INSTANCE_NAME
 
+# Reranker : device (auto|cpu|cuda)
+# - GPU avec VRAM limitee (ex: 3080Ti 12 Go partagee avec bge-m3 + Qwen2.5:14b) : cpu
+# - GPU avec VRAM large (H100, A100, GX10 Blackwell, RTX 5090...) : decommenter pour cuda
+# Si la variable est absente, c'est settings.yaml (reranker.device) qui s'applique.
+RERANKER_DEVICE=cpu
+# RERANKER_DEVICE=cuda
+
 # Offline
 HF_HUB_OFFLINE=1
 TRANSFORMERS_OFFLINE=1
@@ -387,11 +395,32 @@ echo "  Attente demarrage agent (15 s)..."
 sleep 15
 
 if docker exec "$AGENT_CONTAINER" test -f /app/setup_bge_model.py 2>/dev/null; then
-    docker exec "$AGENT_CONTAINER" python3 /app/setup_bge_model.py && ok "BGE-M3 converti en safetensors" || warn "Conversion BGE-M3 echouee -- verifiez les logs : docker compose logs agent"
+    docker exec -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 "$AGENT_CONTAINER" python3 /app/setup_bge_model.py && ok "BGE-M3 converti en safetensors" || warn "Conversion BGE-M3 echouee -- verifiez les logs : docker compose logs agent"
 else
     warn "setup_bge_model.py absent du container -- BGE-M3 non converti"
     warn "Lancez manuellement apres installation : docker exec $AGENT_CONTAINER python3 /app/setup_bge_model.py"
 fi
+
+# Reranker bge-reranker-v2-m3 : telechargement officiel (snapshot_download)
+echo ""
+echo "  Telechargement du reranker BGE-Reranker-v2-M3..."
+RERANKER_DIR="$INSTANCE_PATH/models/huggingface/hub/models--BAAI--bge-reranker-v2-m3"
+if [ -d "$RERANKER_DIR" ] && [ -n "$(ls -A "$RERANKER_DIR/snapshots" 2>/dev/null)" ]; then
+    ok "Reranker deja present (cache local detecte)"
+else
+    docker exec \
+        -e HF_HUB_OFFLINE=0 \
+        -e TRANSFORMERS_OFFLINE=0 \
+        -e HF_HOME=/app/models/huggingface \
+        "$AGENT_CONTAINER" \
+        python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='BAAI/bge-reranker-v2-m3', cache_dir='/app/models/huggingface/hub')" \
+        && ok "Reranker BGE-Reranker-v2-M3 telecharge" \
+        || warn "Telechargement reranker echoue -- verifiez la connectivite internet"
+fi
+
+# Chown final des modeles (uid 1000 = utilisateur dans le container)
+$SUDO chown -R 1000:1000 "$INSTANCE_PATH/models/huggingface" 2>/dev/null || true
+ok "Permissions modeles ajustees (1000:1000)"
 
 # Demarrage complet
 step "8/8" "Demarrage complet..."
@@ -454,9 +483,10 @@ echo "  Il est aussi sauvegarde dans : INSTANCE_CREDENTIALS.txt"
 echo "  (a supprimer apres lecture)"
 echo ""
 echo "  Pour ingerer des documents :"
-echo "    1. Deposez vos fichiers dans : $INSTANCE_PATH/data/"
+echo "    1. Deposez vos fichiers dans : $INSTANCE_PATH/data/$INSTANCE_NAME/"
+echo "       (regle: 1 instance = 1 metier = 1 index = $INSTANCE_NAME)"
 echo "    2. Ouvrez l'Admin UI : http://localhost:${PORTS[ADMIN]}"
-echo "    3. Onglet Ingestion > chemin : /app/data"
+echo "    3. Onglet Ingestion > chemin : /app/data/$INSTANCE_NAME"
 echo ""
 echo "  Gestion : cd $INSTANCE_PATH && ./manage.sh status"
 echo ""

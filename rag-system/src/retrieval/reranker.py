@@ -56,7 +56,16 @@ class Reranker:
         top_n: int = 5
     ):
         self.top_n = top_n
-        self.device = resolve_device(device)
+
+        # Override par variable d'environnement (priorité sur settings.yaml)
+        # Permet de forcer le reranker sur GPU sans toucher au fichier de config.
+        env_device = os.environ.get("RERANKER_DEVICE", "").strip().lower()
+        effective_device = env_device or device
+        self.device = resolve_device(effective_device)
+
+        if env_device:
+            logger.info(f"Reranker device override via RERANKER_DEVICE='{env_device}' → résolu en '{self.device}'")
+
         self.batch_size = batch_size if self.device == "cuda" else min(batch_size, 8)
 
         logger.info(f"Loading reranker model: {model_name} on {self.device} (batch_size={self.batch_size})")

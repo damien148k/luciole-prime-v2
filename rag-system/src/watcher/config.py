@@ -66,6 +66,22 @@ def load_watcher_config(config_path: str | None = None) -> WatcherConfig:
             raw_watcher["watched_paths"]
         )
 
+    # Règle '1 instance = 1 index' :
+    # Si INSTANCE_NAME est défini, on force la surveillance UNIQUEMENT sur
+    # /app/data/${INSTANCE_NAME}/ et on réaffecte cet index par défaut.
+    instance_name = os.environ.get("INSTANCE_NAME", "").strip().lower() or None
+    if instance_name:
+        instance_path = f"/app/data/{instance_name}"
+        raw_watcher["watched_paths"] = [{
+            "path": instance_path,
+            "recursive": True,
+            "index_name": instance_name,
+        }]
+        raw_watcher["default_index_name"] = instance_name
+        logger.info(
+            f"🎯 Mode mono-instance : watcher contraint à '{instance_path}' → index '{instance_name}'"
+        )
+
     config = WatcherConfig(**raw_watcher)
     _validate_paths(config)
     return config
