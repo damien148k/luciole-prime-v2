@@ -9,6 +9,7 @@ L'envoi n'est JAMAIS déclenché depuis ce service.
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from typing import Optional
@@ -78,6 +79,7 @@ class DraftService:
 
         response_text  = rag_result.get("response", "")
         sources        = rag_result.get("sources", [])
+        passages       = rag_result.get("passages", [])
         rag_confidence = rag_result.get("confidence", confidence_score)
 
         # ── 3. Guardrails post-génération ─────────────────────────────────
@@ -103,6 +105,7 @@ class DraftService:
             thread_id          = inbound.thread_id,
             generated_response = response_text,
             sources_used       = json.dumps(sources, ensure_ascii=False),
+            passages_used      = json.dumps(passages, ensure_ascii=False),
             rag_query          = rag_query,
             confidence_score   = float(rag_confidence),
             risk_score         = risk_score,
@@ -127,6 +130,7 @@ class DraftService:
                 "confidence": float(rag_confidence),
                 "risk": risk_score,
                 "sources_count": len(sources),
+                "passages_count": len(passages),
                 "category": classification_category,
             },
         )
@@ -141,27 +145,63 @@ class DraftService:
     # Construction de la requête RAG
     # ─────────────────────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _build_query(inbound: InboundMessage, thread: Optional[MailThread]) -> str:
+    # Sujets jugés non informatifs (test, réponse, transfert…)
+    # → ignorés dans la query pour ne pas polluer le retrieval RAG
+    _TRIVIAL_SUBJECT_RE = re.compile(
+        r"^\s*(re|rép|rep|fwd|tr|fw|aw)\s*:?\s*$|^\s*(test|essai|ping|hello|bonjour|coucou)\s*\??\s*$",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _is_informative_subject(cls, subject: str) -> bool:
+        """
+        Détermine si un sujet apporte du signal sémantique exploitable.
+
+        Retourne False pour les sujets vides, très courts (< 3 mots utiles),
+        ou matchant les patterns triviaux (test, re:, fwd, etc.).
+        """
+        if not subject:
+            return False
+        s = subject.strip()
+        if cls._TRIVIAL_SUBJECT_RE.match(s):
+            return False
+        # Retirer les préfixes Re:/Fwd: répétés pour compter les vrais mots
+        cleaned = re.sub(r"^\s*(re|rép|rep|fwd|tr|fw|aw)\s*:\s*", "", s, flags=re.IGNORECASE)
+        words = [w for w in re.split(r"\s+", cleaned) if len(w) >= 2]
+        return len(words) >= 3
+
+    @classmethod
+    def _build_query(cls, inbound: InboundMessage, thread: Optional[MailThread]) -> str:
         """
         Transforme un email entrant en requête pour le moteur RAG.
 
-        Prend en compte le sujet, le corps nettoyé et le résumé du thread
-        si une conversation est déjà en cours.
+        Stratégie :
+          - Le corps du mail est la question principale (envoyée BRUTE,
+            sans préfixe "Question :" qui dégrade le retrieval et le LLM).
+          - Le sujet n'est ajouté que s'il est informatif (≥ 3 mots, pas
+            un "test"/"re:"/"fwd:"), sous forme de phrase cohérente.
+          - Le résumé de thread (si présent) est ajouté comme contexte.
+
+        Fallback : si le corps est vide, on prend le sujet seul.
         """
-        parts = []
-
-        if inbound.subject:
-            parts.append(f"Sujet de la demande : {inbound.subject}")
-
         body = (inbound.body_text or "").strip()
+        subject = (inbound.subject or "").strip()
+
+        # Cas 1 : corps présent → corps = question principale
         if body:
-            parts.append(f"Question : {body[:1200]}")
+            query = body[:1200]
+            # On enrichit avec le sujet uniquement s'il apporte du signal
+            if cls._is_informative_subject(subject):
+                query = f"{query}\n\n(Sujet du mail : {subject})"
+            if thread and thread.thread_summary:
+                query = f"{query}\n\n(Contexte de la conversation : {thread.thread_summary[:400]})"
+            return query
 
-        if thread and thread.thread_summary:
-            parts.append(f"Contexte de la conversation : {thread.thread_summary[:400]}")
+        # Cas 2 : pas de corps → fallback sur le sujet (même trivial)
+        if subject:
+            return subject
 
-        return "\n\n".join(parts) if parts else inbound.subject or "Question sans sujet"
+        return "Question sans contenu"
 
     # ─────────────────────────────────────────────────────────────────────────
     # Appel à l'Agent API RAG
@@ -179,7 +219,7 @@ class DraftService:
         payload = {
             "query": query,
             "index_name": index_name,
-            "top_k": 15,
+            "top_k": 20,           # aligné sur le défaut chat (ChatRequest.top_k=20)
             "enable_rewriting": True,
         }
 

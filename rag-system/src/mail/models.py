@@ -269,6 +269,7 @@ class DraftApproval:
 
     generated_response: str = ""
     sources_used: str = "[]"            # JSON: [{file_name, score}]
+    passages_used: str = "[]"           # JSON: [{text, file_name, score, page?, section?}]
     rag_query: Optional[str] = None
 
     confidence_score: float = 0.0
@@ -288,6 +289,12 @@ class DraftApproval:
     def get_sources(self) -> list:
         try:
             return json.loads(self.sources_used or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_passages(self) -> list:
+        try:
+            return json.loads(self.passages_used or "[]")
         except (json.JSONDecodeError, TypeError):
             return []
 

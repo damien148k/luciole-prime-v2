@@ -17,6 +17,7 @@ from loguru import logger
 
 from .constants import AuditAction, AuditOutcome, DraftStatus
 from .exceptions import DraftAlreadyReviewedError, DraftNotFoundError
+from .html_renderer import render_email_html
 from .models import DraftApproval, OutboundMessage
 from .state import AuditRepo, DraftRepo, InboundRepo, OutboundRepo
 
@@ -169,8 +170,12 @@ class ApprovalService:
         # Message-ID unique pour le mail sortant
         msg_id_header = f"<{uuid.uuid4().hex}@luciole-prime>"
 
-        # Ajouter les sources et passages au corps de la réponse
+        # Ajouter les sources au corps de la réponse (version texte plain)
+        # On garde l'original avant concaténation pour l'utiliser dans le HTML.
+        original_response = response_text
         sources = draft.get_sources()
+        passages = draft.get_passages()
+
         if sources:
             sources_lines = []
             seen = set()
@@ -191,6 +196,17 @@ class ApprovalService:
                 )
                 response_text = response_text + sources_section
 
+        # Générer la version HTML stylisée (sources + passages)
+        try:
+            body_html = render_email_html(
+                response_text = original_response,
+                sources       = sources,
+                passages      = passages,
+            )
+        except Exception as e:
+            logger.warning(f"Rendu HTML échoué (inbound #{inbound.id}) : {e} — fallback texte seul")
+            body_html = None
+
         return OutboundMessage(
             inbound_message_id = inbound.id,
             thread_id          = inbound.thread_id,
@@ -198,6 +214,7 @@ class ApprovalService:
             to_address         = inbound.from_address,
             subject            = subject,
             body_text          = response_text,
+            body_html          = body_html,
             message_id_header  = msg_id_header,
             in_reply_to        = in_reply_to,
             references_header  = references_str,

@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS draft_approvals (
 
     generated_response      TEXT NOT NULL,
     sources_used            TEXT DEFAULT '[]',
+    passages_used           TEXT DEFAULT '[]',
     rag_query               TEXT,
 
     confidence_score        REAL NOT NULL DEFAULT 0.0,
@@ -376,6 +377,16 @@ def init_tables() -> None:
         try:
             conn = get_db_connection()
             conn.executescript(_SCHEMA_SQL)
+            # Migration : ajouter passages_used si la colonne n'existe pas
+            # (pour les bases créées avant cette colonne)
+            cur = conn.execute("PRAGMA table_info(draft_approvals)")
+            cols = {row[1] for row in cur.fetchall()}
+            if "passages_used" not in cols:
+                conn.execute(
+                    "ALTER TABLE draft_approvals "
+                    "ADD COLUMN passages_used TEXT DEFAULT '[]'"
+                )
+                logger.info("Migration DB mail : colonne passages_used ajoutée")
             conn.commit()
             conn.close()
             _initialized = True
